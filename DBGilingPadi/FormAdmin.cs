@@ -28,7 +28,7 @@ namespace DBGilingPadi
 
         private void FormAdmin_Load(object sender, EventArgs e)
         {
-            // Mengisi pilihan di ComboBox Status saat aplikasi dibuka
+            // Mengisi pilihan di ComboBox Status saat aplikasi dibuka.
             cmbStatus.Items.Clear();
             cmbStatus.Items.Add("Buka");
             cmbStatus.Items.Add("Tutup");

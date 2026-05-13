@@ -168,7 +168,7 @@ namespace DBGilingPadi
                             result.ToString();
 
                         MessageBox.Show(
-                            "Login Berhasil! (SQL Injection Rentan)");
+                            "Login Berhasil!");
 
                         // ROLE ADMIN
                         if (role == "Admin")
