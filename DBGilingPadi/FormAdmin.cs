@@ -47,6 +47,7 @@ namespace DBGilingPadi
             dgvGiling.AllowUserToAddRows = false;
         }
 
+        // Event handler untuk tombol Connect
         private void btnConnect_Click(object sender, EventArgs e)
         {
             try

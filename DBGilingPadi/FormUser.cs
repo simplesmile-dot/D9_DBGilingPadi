@@ -184,7 +184,7 @@ namespace DBGilingPadi
         }
 
         // ==============================
-        // LOGOUT
+        // LOGOUT.
         // ==============================
         private void btnLogout_Click(
             object sender,
