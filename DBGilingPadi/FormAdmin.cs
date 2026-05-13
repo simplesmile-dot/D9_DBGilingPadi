@@ -208,7 +208,6 @@ namespace DBGilingPadi
                         cmd.CommandType =
                             CommandType.StoredProcedure;
 
-                        
                         cmd.Parameters.AddWithValue("@id", id);
                         cmd.ExecuteNonQuery();
                         MessageBox.Show("Data Terhapus!");
