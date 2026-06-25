@@ -16,10 +16,7 @@ namespace DBGilingPadi
         // ==============================
         // CONNECTION STRING
         // ==============================
-        string connectionString =
-            @"Data Source=DESKTOP-GU8JFSR\ZIDANE;
-            Initial Catalog=DBGilingPadi;
-            Integrated Security=True";
+        string connectionString = @"Data Source=DESKTOP-GU8JFSR\ZIDANE; Initial Catalog=DBGilingPadi; User ID=sa; Password=apasaja;";
 
         // ==============================
         // CONSTRUCTOR

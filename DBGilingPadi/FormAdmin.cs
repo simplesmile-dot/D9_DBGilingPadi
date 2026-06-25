@@ -14,7 +14,7 @@ namespace DBGilingPadi
     public partial class FormAdmin : Form
     {
 
-        string connectionString = @"Data Source=DESKTOP-GU8JFSR\ZIDANE; Initial Catalog=DBGilingPadi; Integrated Security=True";
+        string connectionString = @"Data Source=DESKTOP-GU8JFSR\ZIDANE; Initial Catalog=DBGilingPadi; User ID=sa; Password=apasaja;";
         SqlConnection conn;
 
         BindingSource bs =
@@ -24,6 +24,20 @@ namespace DBGilingPadi
         {
             InitializeComponent();
             conn = new SqlConnection(connectionString);
+        }
+
+        private void SimpanLog(string pesan)
+        {
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                string query = "INSERT INTO LogError (pesan_error) VALUES (@pesan)";
+                using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@pesan", pesan);
+                    conn.Open();
+                    cmd.ExecuteNonQuery();
+                }
+            }
         }
 
         private void FormAdmin_Load(object sender, EventArgs e)
@@ -87,8 +101,15 @@ namespace DBGilingPadi
                 // BINDING NAVIGATOR
                 bindingNavigator1.BindingSource = bs;
             }
+            // ADAPTASI MODUL: Try-Catch Bertingkat pada Load Data
+            catch (SqlException ex)
+            {
+                SimpanLog(ex.Message);
+                MessageBox.Show("SQL Gagal Memuat Data: " + ex.Message, "Error Database", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
             catch (Exception ex)
             {
+                SimpanLog(ex.Message);
                 MessageBox.Show("Gagal Memuat Data: " + ex.Message);
             }
             finally
@@ -109,29 +130,57 @@ namespace DBGilingPadi
                 return;
             }
 
+            SqlConnection conn = new SqlConnection(connectionString);
+            conn.Open();
+
+            SqlTransaction trans = conn.BeginTransaction();
+
             try
             {
-
-                conn.Open();
-                SqlCommand cmd =
-                new SqlCommand(
-                "sp_InsertPenggilingan",
-                conn);
-
-                cmd.CommandType =
-                    CommandType.StoredProcedure;
+                SqlCommand cmd = new SqlCommand("sp_InsertPenggilingan", conn, trans);
+                cmd.CommandType = CommandType.StoredProcedure;
 
                 cmd.Parameters.AddWithValue("@nama", txtNama.Text);
                 cmd.Parameters.AddWithValue("@alamat", txtAlamat.Text);
                 cmd.Parameters.AddWithValue("@wilayah", txtWilayah.Text);
                 cmd.Parameters.AddWithValue("@status", cmbStatus.Text);
 
+                byte[] fotoBiner = ConvertImageToByteArray(pbFoto.Image); // Menggunakan pbFoto sesuai nama PictureBox-mu
+                if (fotoBiner != null)
+                {
+                    cmd.Parameters.Add("@foto", SqlDbType.VarBinary).Value = fotoBiner;
+                }
+                else
+                {
+                    cmd.Parameters.Add("@foto", SqlDbType.VarBinary).Value = DBNull.Value;
+                }
+
                 cmd.ExecuteNonQuery();
+
+                SqlCommand cmdLog = new SqlCommand(
+                    "INSERT INTO LogAktivitasSalah (aktivitas, waktu) VALUES (@aktivitas, GETDATE())",
+                    conn,
+                    trans
+                );
+
+                cmdLog.Parameters.AddWithValue("@aktivitas", "TAMBAH PENGGILINGAN: " + txtNama.Text);
+                cmdLog.ExecuteNonQuery();
+
+                trans.Commit();
+
                 MessageBox.Show("Data Berhasil Disimpan!");
                 ClearForm();
             }
+            catch (SqlException ex)
+            {
+                trans.Rollback();
+                SimpanLog("BATAL TAMBAH DATA: " + ex.Message);
+                MessageBox.Show("SQL Error Simpan: " + ex.Message, "Kesalahan Database", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
             catch (Exception ex)
             {
+                trans.Rollback();
+                SimpanLog("BATAL TAMBAH DATA: " + ex.Message);
                 MessageBox.Show("Gagal Simpan: " + ex.Message);
             }
             finally
@@ -173,14 +222,30 @@ namespace DBGilingPadi
                     cmd.Parameters.AddWithValue("@status", cmbStatus.Text);
                     cmd.Parameters.AddWithValue("@id", id);
 
+                    byte[] fotoBiner = ConvertImageToByteArray(pbFoto.Image);
+                    if (fotoBiner != null)
+                    {
+                        cmd.Parameters.Add("@foto", SqlDbType.VarBinary).Value = fotoBiner;
+                    }
+                    else
+                    {
+                        cmd.Parameters.Add("@foto", SqlDbType.VarBinary).Value = DBNull.Value;
+                    }
+
                     cmd.ExecuteNonQuery();
                     MessageBox.Show("Data Berhasil Diperbarui!");
                     ClearForm();
                 }
                 else { MessageBox.Show("Pilih baris di tabel dulu!"); }
             }
+            catch (SqlException ex)
+            {
+                SimpanLog(ex.Message); // Simpan ke tabel LogError jika kena trigger proteksi massal
+                MessageBox.Show("SQL Error Update: " + ex.Message, "Keamanan / Database Terganggu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
             catch (Exception ex)
             {
+                SimpanLog(ex.Message);
                 MessageBox.Show("Gagal Update: " + ex.Message);
             }
             finally
@@ -215,8 +280,14 @@ namespace DBGilingPadi
                     }
                 }
             }
+            catch (SqlException ex)
+            {
+                SimpanLog(ex.Message); // Simpan ke tabel LogError
+                MessageBox.Show("SQL Error Hapus: " + ex.Message, "Kesalahan Database", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
             catch (Exception ex)
             {
+                SimpanLog(ex.Message);
                 MessageBox.Show("Gagal Hapus: " + ex.Message);
             }
             finally
@@ -276,6 +347,110 @@ namespace DBGilingPadi
         private void bindingNavigatorPositionItem_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void btnTestInjection_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connectionString))
+                {
+                    string query = "UPDATE Penggilingan SET NamaTempat = '" + txtNama.Text +
+                                   "' WHERE Wilayah = '" + txtWilayah.Text + "'";
+
+                    SqlCommand cmd = new SqlCommand(query, conn);
+
+                    conn.Open();
+
+                    cmd.ExecuteNonQuery();
+
+                    MessageBox.Show("Update berhasil");
+                }
+            }
+            catch (SqlException ex) // Menangkap pesan RAISERROR dari database
+            {
+                SimpanLog(ex.Message); // <-- Kunci utamanya di sini, merekam ke tabel LogError!
+                MessageBox.Show("SQL Error: " + ex.Message); // Memunculkan pesan peringatan di layar
+            }
+            catch (Exception ex) // Menangkap error umum lainnya
+            {
+                SimpanLog(ex.Message); //
+                MessageBox.Show("General Error: " + ex.Message); //
+            }
+        }
+
+        private void btnKeHalamanRekap_Click(object sender, EventArgs e)
+        {
+            // Membuka FormRekap yang sudah kita buat sesuai modul
+            FormRekap frmRekap = new FormRekap();
+            frmRekap.Show();
+
+            // Menyembunyikan Dashboard Admin ini sementara waktu
+            this.Hide();
+        }
+
+        private void btnBrowse_Click(object sender, EventArgs e)
+        {
+            // 1. Membuat objek OpenFileDialog untuk membuka file browser
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+
+            // 2. Mengatur filter format file agar user hanya bisa memilih gambar
+            openFileDialog.Filter = "Image Files (*.jpg; *.jpeg; *.gif; *.png)|*.jpg; *.jpeg; *.gif; *.png";
+
+            // 3. Menampilkan jendela dialog file browser
+            if (openFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                // 4. Memasukkan gambar yang dipilih ke dalam PictureBox (pbFoto)
+                pbFoto.Image = new Bitmap(openFileDialog.FileName);
+
+                // 5. Memastikan gambar menyesuaikan ukuran kotak PictureBox secara otomatis
+                pbFoto.SizeMode = PictureBoxSizeMode.StretchImage;
+            }
+        }
+
+        // Fungsi bantuan untuk mengubah Image menjadi Array of Bytes (Biner)
+        private byte[] ConvertImageToByteArray(Image img)
+        {
+            // 1. Jika di PictureBox ternyata tidak ada gambarnya, kembalikan nilai null (kosong)
+            if (img == null)
+                return null;
+
+            // 2. Menyediakan wadah memori sementara untuk menampung aliran data gambar
+            using (System.IO.MemoryStream ms = new System.IO.MemoryStream())
+            {
+                // 3. Menyimpan objek gambar ke dalam MemoryStream dengan format Jpeg
+                img.Save(ms, System.Drawing.Imaging.ImageFormat.Jpeg);
+
+                // 4. Mengembalikan hasil konversi dalam bentuk array byte yang siap dikirim ke database
+                return ms.ToArray();
+            }
+        }
+
+        private void btnKembali_Click(object sender, EventArgs e)
+        {
+            FormDashboard dashboard = new FormDashboard();
+            dashboard.Show();
+            this.Close();
+        }
+
+        private void txtNama_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            // Hanya mengizinkan huruf, angka, spasi, dan tombol backspace (untuk menghapus)
+            if (!char.IsLetterOrDigit(e.KeyChar) && !char.IsWhiteSpace(e.KeyChar) && e.KeyChar != (char)Keys.Back)
+            {
+                e.Handled = true; // Tolak input jika berupa simbol
+                MessageBox.Show("Nama tidak boleh mengandung simbol!", "Validasi Input", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void txtWilayah_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            // Hanya mengizinkan huruf, spasi, dan tombol backspace (angka dan simbol dilarang)
+            if (!char.IsLetter(e.KeyChar) && !char.IsWhiteSpace(e.KeyChar) && e.KeyChar != (char)Keys.Back)
+            {
+                e.Handled = true; // Tolak input jika berupa angka atau simbol
+                MessageBox.Show("Wilayah hanya boleh berisi huruf dan spasi!", "Validasi Input", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
     }
 }

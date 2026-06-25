@@ -173,10 +173,8 @@ namespace DBGilingPadi
                         // ROLE ADMIN
                         if (role == "Admin")
                         {
-                            FormAdmin admin =
-                                new FormAdmin();
-
-                            admin.Show();
+                            FormDashboard dashboard = new FormDashboard();
+                            dashboard.Show();
                             this.Hide();
                         }
 
